@@ -1,0 +1,17 @@
+{
+  "name": "multi-customer-meter-app",
+  "version": "1.0.0",
+  "description": "แอพจดบันทึกมิเตอร์น้ำ-ไฟฟ้าสำหรับลูกค้าหลายคน",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'No build step needed'",
+    "start": "vercel --prod"
+  },
+  "keywords": ["meter", "utilities", "tracking"],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}

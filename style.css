@@ -1,0 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
+body {
+    font-family: 'Noto Sans Thai', sans-serif;
+}
+
+/* Tab Styles */
+.tab-btn.active {
+    background-color: #5D5CDE;
+    color: white;
+}
+
+.tab-btn:not(.active) {
+    color: #6B7280;
+}
+
+.tab-btn:not(.active):hover {
+    background-color: #F3F4F6;
+}
+
+.dark .tab-btn:not(.active):hover {
+    background-color: #374151;
+}
+
+.dark .tab-btn:not(.active) {
+    color: #9CA3AF;
+}
+
+/* Loading Animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-radius: 50%;
+    border-top-color: #5D5CDE;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .tab-btn {
+        font-size: 0.875rem;
+        padding: 0.75rem 0.5rem;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+}
