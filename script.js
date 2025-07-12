@@ -67,6 +67,9 @@ function initializeApp() {
     // Load settings to UI
     loadSettings();
     
+    // 🆕 เพิ่มบรรทัดนี้: โหลด Google Script URL ที่บันทึกไว้
+    loadGoogleScriptUrl();
+    
     // Update displays
     updateCustomersList();
     updateCustomerDropdowns();
@@ -90,6 +93,7 @@ function initializeApp() {
     // Try to load data from Google Sheets on startup if URL is available
     tryAutoLoadFromGoogleSheets();
 }
+
 
 function createContentContainers() {
     const appContent = document.getElementById('app-content');
@@ -420,6 +424,18 @@ function initializeEventListeners() {
     document.getElementById('saveSettings').addEventListener('click', saveSettings);
     document.getElementById('testConnection').addEventListener('click', testGoogleSheetsConnection);
     document.getElementById('syncData').addEventListener('click', syncDataWithGoogleSheets);
+
+    // 🆕 เพิ่ม event listeners สำหรับ Google Script URL
+    document.getElementById('googleScriptUrl').addEventListener('input', saveGoogleScriptUrl);
+    document.getElementById('googleScriptUrl').addEventListener('paste', () => {
+        setTimeout(saveGoogleScriptUrl, 100); // delay เล็กน้อยเพื่อให้ paste เสร็จก่อน
+    });
+    
+    // เพิ่ม event listener สำหรับปุ่มล้าง URL (ถ้ามี)
+    const clearUrlBtn = document.getElementById('clearSavedUrl');
+    if (clearUrlBtn) {
+        clearUrlBtn.addEventListener('click', clearSavedUrl);
+    }
 
     // Modal event listeners
     document.getElementById('confirmCancel').addEventListener('click', hideConfirmDialog);
@@ -1079,6 +1095,9 @@ async function testGoogleSheetsConnection() {
         return;
     }
 
+    // บันทึก URL เมื่อเริ่มทดสอบ
+    saveGoogleScriptUrl();
+
     updateConnectionStatus('🔄 กำลังทดสอบการเชื่อมต่อ...', 'testing');
 
     try {
@@ -1087,7 +1106,7 @@ async function testGoogleSheetsConnection() {
         
         if (result.success) {
             updateConnectionStatus('✅ เชื่อมต่อสำเร็จ', 'connected');
-            showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
+            showMessage('ทดสอบการเชื่อมต่อสำเร็จ และบันทึก URL แล้ว', 'success');
         } else {
             throw new Error(result.error || 'การทดสอบล้มเหลว');
         }
@@ -1096,19 +1115,29 @@ async function testGoogleSheetsConnection() {
         try {
             const response = await fetch(url + '?action=test&t=' + Date.now(), {
                 method: 'GET',
-                mode: 'no-cors', // ใช้ no-cors mode
+                mode: 'no-cors',
                 cache: 'no-cache'
             });
             
-            // เมื่อใช้ no-cors จะไม่สามารถอ่าน response ได้
-            // แต่ถ้าไม่มี error แสดงว่าการเชื่อมต่อทำงาน
             updateConnectionStatus('✅ เชื่อมต่อสำเร็จ (no-cors)', 'connected');
-            showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
+            showMessage('ทดสอบการเชื่อมต่อสำเร็จ และบันทึก URL แล้ว', 'success');
         } catch (fetchError) {
             updateConnectionStatus('❌ เชื่อมต่อไม่สำเร็จ: ' + error.message, 'error');
             showMessage('ไม่สามารถเชื่อมต่อได้: ' + error.message, 'error');
         }
     }
+}
+
+// ฟังก์ชันตรวจสอบว่ามี URL บันทึกไว้หรือไม่
+function hasStoredUrl() {
+    return localStorage.getItem('googleScriptUrl') !== null;
+}
+
+// ฟังก์ชันแสดงสถานะการบันทึก URL
+function showUrlStatus() {
+    const hasUrl = hasStoredUrl();
+    const statusText = hasUrl ? '✅ มี URL บันทึกไว้' : '⚠️ ยังไม่มี URL บันทึกไว้';
+    console.log(statusText);
 }
 
 async function syncDataWithGoogleSheets() {
@@ -1430,4 +1459,34 @@ function syncWithImageTrick(url) {
         
         img.src = url + '?data=' + data + '&t=' + Date.now();
     });
+}
+
+// ฟังก์ชันสำหรับบันทึกและโหลด Google Script URL
+function saveGoogleScriptUrl() {
+    const url = document.getElementById('googleScriptUrl').value.trim();
+    if (url) {
+        localStorage.setItem('googleScriptUrl', url);
+        console.log('✅ บันทึก Google Script URL แล้ว');
+    }
+}
+
+function loadGoogleScriptUrl() {
+    const savedUrl = localStorage.getItem('googleScriptUrl');
+    if (savedUrl) {
+        document.getElementById('googleScriptUrl').value = savedUrl;
+        console.log('✅ โหลด Google Script URL จาก localStorage');
+        
+        // ทดสอบการเชื่อมต่ออัตโนมัติเมื่อมี URL
+        setTimeout(() => {
+            testGoogleSheetsConnection();
+        }, 1000);
+    }
+}
+
+// ฟังก์ชันสำหรับล้าง URL ที่บันทึกไว้
+function clearSavedUrl() {
+    localStorage.removeItem('googleScriptUrl');
+    document.getElementById('googleScriptUrl').value = '';
+    updateConnectionStatus('🔘 ล้าง URL ที่บันทึกไว้แล้ว', 'default');
+    showMessage('ล้าง URL ที่บันทึกไว้แล้ว', 'success');
 }
