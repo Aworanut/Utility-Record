@@ -1070,7 +1070,7 @@ function saveSettings() {
     showMessage('บันทึกการตั้งค่าเรียบร้อย', 'success');
 }
 
-// Google Sheets Integration Functions
+// Google Sheets Integration Functions (แก้ไขใหม่)
 async function testGoogleSheetsConnection() {
     const url = document.getElementById('googleScriptUrl').value.trim();
     
@@ -1084,7 +1084,9 @@ async function testGoogleSheetsConnection() {
     try {
         const response = await fetch(url + '?action=test', {
             method: 'GET',
-            mode: 'cors'
+            headers: {
+                'Content-Type': 'application/json',
+            }
         });
 
         if (response.ok) {
@@ -1092,7 +1094,7 @@ async function testGoogleSheetsConnection() {
             updateConnectionStatus('✅ เชื่อมต่อสำเร็จ', 'connected');
             showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
         } else {
-            throw new Error('HTTP ' + response.status);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
     } catch (error) {
         updateConnectionStatus('❌ เชื่อมต่อไม่สำเร็จ: ' + error.message, 'error');
@@ -1111,10 +1113,9 @@ async function syncDataWithGoogleSheets() {
     updateConnectionStatus('🔄 กำลังซิงค์ข้อมูล...', 'syncing');
 
     try {
-        // Save current data to Google Sheets
-        const saveResponse = await fetch(url, {
+        // Method 1: ลองใช้ fetch แบบปกติก่อน
+        const response = await fetch(url, {
             method: 'POST',
-            mode: 'cors',
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -1124,50 +1125,136 @@ async function syncDataWithGoogleSheets() {
             })
         });
 
-        if (saveResponse.ok) {
-            const result = await saveResponse.json();
+        if (response.ok) {
+            const result = await response.json();
             if (result.success) {
                 updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ', 'connected');
                 showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+                
+                // โหลดข้อมูลกลับมาเพื่อ sync
+                await loadDataFromGoogleSheets();
             } else {
                 throw new Error(result.error || 'ไม่สามารถบันทึกข้อมูลได้');
             }
         } else {
-            throw new Error('HTTP ' + saveResponse.status);
+            // Method 2: ถ้า Method 1 ไม่ได้ ลองใช้ form data
+            await syncWithFormData(url);
         }
     } catch (error) {
-        updateConnectionStatus('❌ ซิงค์ข้อมูลไม่สำเร็จ: ' + error.message, 'error');
-        showMessage('ไม่สามารถซิงค์ข้อมูลได้: ' + error.message, 'error');
+        // Method 3: ลองใช้ JSONP หรือ alternative method
+        try {
+            await syncWithAlternativeMethod(url);
+        } catch (alternativeError) {
+            updateConnectionStatus('❌ ซิงค์ข้อมูลไม่สำเร็จ: ' + error.message, 'error');
+            showMessage('ไม่สามารถซิงค์ข้อมูลได้: ' + error.message, 'error');
+            console.error('Sync error details:', error);
+        }
     }
 }
 
-async function tryAutoLoadFromGoogleSheets() {
+async function syncWithFormData(url) {
+    const formData = new FormData();
+    formData.append('data', JSON.stringify({
+        action: 'save',
+        data: appData
+    }));
+
+    const response = await fetch(url, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (FormData)', 'connected');
+            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+            await loadDataFromGoogleSheets();
+        } else {
+            throw new Error(result.error || 'FormData method failed');
+        }
+    } else {
+        throw new Error(`FormData HTTP ${response.status}`);
+    }
+}
+
+async function syncWithAlternativeMethod(url) {
+    // ใช้ XMLHttpRequest แทน fetch
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        const result = JSON.parse(xhr.responseText);
+                        if (result.success) {
+                            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (XMLHttpRequest)', 'connected');
+                            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+                            loadDataFromGoogleSheets();
+                            resolve(result);
+                        } else {
+                            reject(new Error(result.error || 'XMLHttpRequest method failed'));
+                        }
+                    } catch (e) {
+                        reject(new Error('Failed to parse response: ' + e.message));
+                    }
+                } else {
+                    reject(new Error(`XMLHttpRequest HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            }
+        };
+        
+        xhr.onerror = function() {
+            reject(new Error('XMLHttpRequest network error'));
+        };
+        
+        xhr.send(JSON.stringify({
+            action: 'save',
+            data: appData
+        }));
+    });
+}
+
+async function loadDataFromGoogleSheets() {
     const url = document.getElementById('googleScriptUrl').value.trim();
     if (!url) return;
 
     try {
         const response = await fetch(url + '?action=load', {
             method: 'GET',
-            mode: 'cors'
+            headers: {
+                'Content-Type': 'application/json',
+            }
         });
 
         if (response.ok) {
             const result = await response.json();
             if (result.success && result.data) {
+                // Merge ข้อมูล
                 appData = { ...appData, ...result.data };
+                
+                // อัปเดต UI
                 loadSettings();
                 updateCustomersList();
                 updateCustomerDropdowns();
                 updateCurrentUsage();
                 updateSummary();
                 updateHistoryDisplay();
-                updateConnectionStatus('✅ โหลดข้อมูลจาก Google Sheets สำเร็จ', 'connected');
+                
+                console.log('✅ โหลดข้อมูลจาก Google Sheets สำเร็จ');
             }
         }
     } catch (error) {
-        // Silently fail for auto-load
-        console.log('Auto-load failed:', error);
+        console.log('โหลดข้อมูลล้มเหลว:', error);
     }
+}
+
+async function tryAutoLoadFromGoogleSheets() {
+    // ฟังก์ชันเดิมแต่เปลี่ยนชื่อเป็น loadDataFromGoogleSheets
+    await loadDataFromGoogleSheets();
 }
 
 function updateConnectionStatus(message, status) {
