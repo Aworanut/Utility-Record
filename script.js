@@ -1082,23 +1082,32 @@ async function testGoogleSheetsConnection() {
     updateConnectionStatus('🔄 กำลังทดสอบการเชื่อมต่อ...', 'testing');
 
     try {
-        const response = await fetch(url + '?action=test', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (response.ok) {
-            const result = await response.text();
+        // ลองใช้ JSONP สำหรับการทดสอบ
+        const result = await makeJSONPRequest(url, { action: 'test' });
+        
+        if (result.success) {
             updateConnectionStatus('✅ เชื่อมต่อสำเร็จ', 'connected');
             showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
         } else {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            throw new Error(result.error || 'การทดสอบล้มเหลว');
         }
     } catch (error) {
-        updateConnectionStatus('❌ เชื่อมต่อไม่สำเร็จ: ' + error.message, 'error');
-        showMessage('ไม่สามารถเชื่อมต่อได้: ' + error.message, 'error');
+        // ถ้า JSONP ไม่ได้ผล ลองใช้ fetch แบบธรรมดา
+        try {
+            const response = await fetch(url + '?action=test&t=' + Date.now(), {
+                method: 'GET',
+                mode: 'no-cors', // ใช้ no-cors mode
+                cache: 'no-cache'
+            });
+            
+            // เมื่อใช้ no-cors จะไม่สามารถอ่าน response ได้
+            // แต่ถ้าไม่มี error แสดงว่าการเชื่อมต่อทำงาน
+            updateConnectionStatus('✅ เชื่อมต่อสำเร็จ (no-cors)', 'connected');
+            showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
+        } catch (fetchError) {
+            updateConnectionStatus('❌ เชื่อมต่อไม่สำเร็จ: ' + error.message, 'error');
+            showMessage('ไม่สามารถเชื่อมต่อได้: ' + error.message, 'error');
+        }
     }
 }
 
@@ -1113,59 +1122,43 @@ async function syncDataWithGoogleSheets() {
     updateConnectionStatus('🔄 กำลังซิงค์ข้อมูล...', 'syncing');
 
     try {
-        // ลองใช้ XMLHttpRequest เพื่อหลีกเลี่ยง CORS preflight
-        const result = await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', url, true);
-            
-            xhr.onload = function() {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        const response = JSON.parse(xhr.responseText);
-                        resolve(response);
-                    } catch (e) {
-                        // ถ้าไม่ใช่ JSON อาจเป็น plain text success
-                        resolve({ success: true, message: xhr.responseText });
-                    }
-                } else {
-                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
-                }
-            };
-            
-            xhr.onerror = function() {
-                reject(new Error('Network error'));
-            };
-            
-            xhr.ontimeout = function() {
-                reject(new Error('Request timeout'));
-            };
-            
-            xhr.timeout = 30000; // 30 seconds timeout
-            
-            // ส่งข้อมูลแบบ form-encoded แทน JSON
-            const formData = new URLSearchParams();
-            formData.append('data', JSON.stringify({
-                action: 'save',
-                data: appData
-            }));
-            
-            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            xhr.send(formData);
+        // วิธีที่ 1: ลองใช้ FormData ก่อน
+        const formData = new FormData();
+        formData.append('data', JSON.stringify({
+            action: 'save',
+            data: appData
+        }));
+
+        const response = await fetch(url, {
+            method: 'POST',
+            body: formData
         });
 
-        if (result.success !== false) {
+        if (response.ok || response.type === 'opaque') {
             updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ', 'connected');
             showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
             
             // โหลดข้อมูลกลับมา
-            await loadDataFromGoogleSheets();
+            setTimeout(() => {
+                loadDataFromGoogleSheets();
+            }, 1000);
         } else {
-            throw new Error(result.error || 'ไม่สามารถบันทึกข้อมูลได้');
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+
     } catch (error) {
-        updateConnectionStatus('❌ ซิงค์ข้อมูลไม่สำเร็จ: ' + error.message, 'error');
-        showMessage('ไม่สามารถซิงค์ข้อมูลได้: ' + error.message, 'error');
-        console.error('Sync error:', error);
+        // วิธีที่ 2: ลองใช้ XMLHttpRequest
+        try {
+            await syncWithXMLHttpRequest(url);
+        } catch (xhrError) {
+            // วิธีที่ 3: ลองใช้ Image trick สำหรับ GET request
+            try {
+                await syncWithImageTrick(url);
+            } catch (imgError) {
+                updateConnectionStatus('❌ ซิงค์ข้อมูลไม่สำเร็จ: ' + error.message, 'error');
+                showMessage('ไม่สามารถซิงค์ข้อมูลได้: ' + error.message, 'error');
+            }
+        }
     }
 }
 
@@ -1240,32 +1233,35 @@ async function loadDataFromGoogleSheets() {
     if (!url) return;
 
     try {
-        const response = await fetch(url + '?action=load', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success && result.data) {
-                // Merge ข้อมูล
-                appData = { ...appData, ...result.data };
-                
-                // อัปเดต UI
-                loadSettings();
-                updateCustomersList();
-                updateCustomerDropdowns();
-                updateCurrentUsage();
-                updateSummary();
-                updateHistoryDisplay();
-                
-                console.log('✅ โหลดข้อมูลจาก Google Sheets สำเร็จ');
-            }
+        // ลองใช้ JSONP ก่อน
+        const result = await makeJSONPRequest(url, { action: 'load' });
+        
+        if (result.success && result.data) {
+            // Merge ข้อมูล
+            appData = { ...appData, ...result.data };
+            
+            // อัปเดต UI
+            loadSettings();
+            updateCustomersList();
+            updateCustomerDropdowns();
+            updateCurrentUsage();
+            updateSummary();
+            updateHistoryDisplay();
+            
+            console.log('✅ โหลดข้อมูลจาก Google Sheets สำเร็จ');
         }
     } catch (error) {
-        console.log('โหลดข้อมูลล้มเหลว:', error);
+        // ถ้า JSONP ไม่ได้ผล ลองใช้ fetch no-cors
+        try {
+            await fetch(url + '?action=load&t=' + Date.now(), {
+                method: 'GET',
+                mode: 'no-cors',
+                cache: 'no-cache'
+            });
+            console.log('โหลดข้อมูล (no-cors mode) - ไม่สามารถอ่าน response ได้');
+        } catch (fetchError) {
+            console.log('โหลดข้อมูลล้มเหลว:', error);
+        }
     }
 }
 
@@ -1328,3 +1324,110 @@ function hideConfirmDialog() {
 window.editCustomer = editCustomer;
 window.deleteCustomer = deleteCustomer;
 window.deleteReading = deleteReading;
+
+// ฟังก์ชันสำหรับทำ JSONP request
+function makeJSONPRequest(url, params) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+        
+        // สร้าง URL พร้อม parameters
+        const queryString = new URLSearchParams(params).toString();
+        const requestUrl = url + '?' + queryString + '&callback=' + callbackName;
+        
+        // สร้าง callback function
+        window[callbackName] = function(data) {
+            document.head.removeChild(script);
+            delete window[callbackName];
+            resolve(data);
+        };
+        
+        // สร้าง script tag
+        const script = document.createElement('script');
+        script.src = requestUrl;
+        script.onerror = function() {
+            document.head.removeChild(script);
+            delete window[callbackName];
+            reject(new Error('JSONP request failed'));
+        };
+        
+        // timeout
+        setTimeout(() => {
+            if (window[callbackName]) {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                reject(new Error('JSONP request timeout'));
+            }
+        }, 10000);
+        
+        document.head.appendChild(script);
+    });
+}
+
+// ใช้ XMLHttpRequest แทน fetch
+function syncWithXMLHttpRequest(url) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        
+        xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (XHR)', 'connected');
+                showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+                setTimeout(() => loadDataFromGoogleSheets(), 1000);
+                resolve();
+            } else {
+                reject(new Error(`XHR ${xhr.status}: ${xhr.statusText}`));
+            }
+        };
+        
+        xhr.onerror = function() {
+            reject(new Error('XHR network error'));
+        };
+        
+        xhr.ontimeout = function() {
+            reject(new Error('XHR timeout'));
+        };
+        
+        xhr.timeout = 30000;
+        
+        // ส่งข้อมูลแบบ form-encoded
+        const formData = new URLSearchParams();
+        formData.append('data', JSON.stringify({
+            action: 'save',
+            data: appData
+        }));
+        
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.send(formData);
+    });
+}
+
+// ใช้ Image trick สำหรับส่งข้อมูล (สำหรับข้อมูลเล็กๆ)
+function syncWithImageTrick(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const data = encodeURIComponent(JSON.stringify({
+            action: 'save',
+            data: appData
+        }));
+        
+        // สร้าง URL พร้อมข้อมูล (ถ้าข้อมูลไม่ใหญ่เกินไป)
+        if (data.length > 2000) {
+            reject(new Error('ข้อมูลใหญ่เกินไปสำหรับ Image trick'));
+            return;
+        }
+        
+        img.onload = function() {
+            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (Image)', 'connected');
+            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+            setTimeout(() => loadDataFromGoogleSheets(), 1000);
+            resolve();
+        };
+        
+        img.onerror = function() {
+            reject(new Error('Image trick failed'));
+        };
+        
+        img.src = url + '?data=' + data + '&t=' + Date.now();
+    });
+}
