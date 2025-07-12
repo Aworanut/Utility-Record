@@ -1113,42 +1113,59 @@ async function syncDataWithGoogleSheets() {
     updateConnectionStatus('🔄 กำลังซิงค์ข้อมูล...', 'syncing');
 
     try {
-        // Method 1: ลองใช้ fetch แบบปกติก่อน
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        // ลองใช้ XMLHttpRequest เพื่อหลีกเลี่ยง CORS preflight
+        const result = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve(response);
+                    } catch (e) {
+                        // ถ้าไม่ใช่ JSON อาจเป็น plain text success
+                        resolve({ success: true, message: xhr.responseText });
+                    }
+                } else {
+                    reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                }
+            };
+            
+            xhr.onerror = function() {
+                reject(new Error('Network error'));
+            };
+            
+            xhr.ontimeout = function() {
+                reject(new Error('Request timeout'));
+            };
+            
+            xhr.timeout = 30000; // 30 seconds timeout
+            
+            // ส่งข้อมูลแบบ form-encoded แทน JSON
+            const formData = new URLSearchParams();
+            formData.append('data', JSON.stringify({
                 action: 'save',
                 data: appData
-            })
+            }));
+            
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.send(formData);
         });
 
-        if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-                updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ', 'connected');
-                showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
-                
-                // โหลดข้อมูลกลับมาเพื่อ sync
-                await loadDataFromGoogleSheets();
-            } else {
-                throw new Error(result.error || 'ไม่สามารถบันทึกข้อมูลได้');
-            }
+        if (result.success !== false) {
+            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ', 'connected');
+            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+            
+            // โหลดข้อมูลกลับมา
+            await loadDataFromGoogleSheets();
         } else {
-            // Method 2: ถ้า Method 1 ไม่ได้ ลองใช้ form data
-            await syncWithFormData(url);
+            throw new Error(result.error || 'ไม่สามารถบันทึกข้อมูลได้');
         }
     } catch (error) {
-        // Method 3: ลองใช้ JSONP หรือ alternative method
-        try {
-            await syncWithAlternativeMethod(url);
-        } catch (alternativeError) {
-            updateConnectionStatus('❌ ซิงค์ข้อมูลไม่สำเร็จ: ' + error.message, 'error');
-            showMessage('ไม่สามารถซิงค์ข้อมูลได้: ' + error.message, 'error');
-            console.error('Sync error details:', error);
-        }
+        updateConnectionStatus('❌ ซิงค์ข้อมูลไม่สำเร็จ: ' + error.message, 'error');
+        showMessage('ไม่สามารถซิงค์ข้อมูลได้: ' + error.message, 'error');
+        console.error('Sync error:', error);
     }
 }
 
