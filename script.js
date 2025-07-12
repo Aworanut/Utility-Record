@@ -323,31 +323,60 @@ function createContentContainers() {
         <!-- Settings Tab -->
         <div id="settingsContent" class="tab-content p-6 hidden">
             <div class="space-y-6">
-                <!-- Google Sheets Integration -->
                 <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-6">
                     <h3 class="text-lg font-semibold text-green-700 dark:text-green-300 mb-4">☁️ การเชื่อมต่อ Google Sheets</h3>
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Google Apps Script URL</label>
-                            <input id="googleScriptUrl" type="url" placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-gray-700 dark:text-white text-base">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                URL ของ Google Apps Script สำหรับเก็บข้อมูลบน Google Sheets
-                            </p>
+                        <!-- แสดงสถานะ URL แทน field -->
+                        <div id="urlStatus">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">สถานะการตั้งค่า</label>
+                            <div id="urlStatusText" class="p-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm shadow-sm">
+                                <div class="text-center">
+                                    <span class="text-gray-500 dark:text-gray-400">🔄 กำลังตรวจสอบ...</span>
+                                </div>
+                            </div>
+                            <div class="mt-3 flex justify-between items-center">
+                                <button id="manageUrl" class="text-blue-500 hover:text-blue-700 text-sm font-medium px-3 py-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                                    ⚙️ จัดการ URL
+                                </button>
+                                <button id="deleteUrl" class="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                    🗑️ ลบ URL
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- URL field ที่ซ่อนไว้ -->
+                        <div id="urlContainer" style="display: none;" class="border-2 border-blue-200 dark:border-blue-700 rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Google Apps Script URL</label>
+                            <input id="googleScriptUrl" type="url" placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-base">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                กด Enter เพื่อบันทึก หรือ Escape เพื่อยกเลิก
+                            </p>
+                            <div class="mt-3 flex gap-2">
+                                <button id="saveUrl" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    💾 บันทึก
+                                </button>
+                                <button id="cancelUrlEdit" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    ❌ ยกเลิก
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ปุ่มควบคุม -->
                         <div class="flex flex-col sm:flex-row gap-3">
-                            <button id="testConnection" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <button id="testConnection" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors font-medium">
                                 🔍 ทดสอบการเชื่อมต่อ
                             </button>
-                            <button id="syncData" class="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <button id="syncData" class="flex-1 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors font-medium">
                                 ↕️ ซิงค์ข้อมูล
                             </button>
                         </div>
-                        <div id="connectionStatus" class="text-sm p-3 rounded-lg bg-gray-100 dark:bg-gray-800">
+
+                        <!-- สถานะการเชื่อมต่อ -->
+                        <div id="connectionStatus" class="text-sm p-3 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                             <span class="text-gray-500 dark:text-gray-400">🔘 ยังไม่ได้เชื่อมต่อ</span>
                         </div>
                     </div>
                 </div>
-
                 <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">ตั้งค่าอัตราค่าใช้จ่าย</h3>
                 
                 <div class="grid md:grid-cols-2 gap-6">
@@ -1489,4 +1518,285 @@ function clearSavedUrl() {
     document.getElementById('googleScriptUrl').value = '';
     updateConnectionStatus('🔘 ล้าง URL ที่บันทึกไว้แล้ว', 'default');
     showMessage('ล้าง URL ที่บันทึกไว้แล้ว', 'success');
+}
+
+// ========================================
+// เพิ่มฟังก์ชันเหล่านี้ในไฟล์ script.js
+// ========================================
+
+// ฟังก์ชันสำหรับซ่อน/แสดง URL field
+function toggleUrlVisibility(show = false) {
+    const urlContainer = document.getElementById('urlContainer');
+    const urlStatus = document.getElementById('urlStatus');
+    
+    if (show) {
+        urlContainer.style.display = 'block';
+        urlStatus.style.display = 'none';
+    } else {
+        urlContainer.style.display = 'none';
+        urlStatus.style.display = 'block';
+        updateUrlStatus(); // อัปเดตสถานะเมื่อซ่อน
+    }
+}
+
+// ฟังก์ชันแสดงสถานะ URL
+function updateUrlStatus() {
+    const hasUrl = hasStoredUrl();
+    const statusElement = document.getElementById('urlStatusText');
+    
+    if (statusElement) {
+        if (hasUrl) {
+            const url = localStorage.getItem('googleScriptUrl');
+            // แสดงเฉพาะส่วนต้นและท้ายของ URL
+            let maskedUrl = '';
+            if (url.length > 50) {
+                maskedUrl = url.substring(0, 30) + '...' + url.substring(url.length - 15);
+            } else {
+                maskedUrl = url.substring(0, 30) + '...';
+            }
+            
+            statusElement.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-green-600 dark:text-green-400 font-medium">✅ URL ถูกตั้งค่าแล้ว</span><br>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">${maskedUrl}</span>
+                    </div>
+                    <div class="text-xs text-gray-400">
+                        บันทึกเมื่อ: ${getStorageDate()}
+                    </div>
+                </div>
+            `;
+        } else {
+            statusElement.innerHTML = `
+                <div class="text-center">
+                    <span class="text-red-600 dark:text-red-400 font-medium">❌ ยังไม่ได้ตั้งค่า URL</span><br>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">คลิก "จัดการ URL" เพื่อเพิ่ม URL</span>
+                </div>
+            `;
+        }
+    }
+}
+
+// ฟังก์ชันสำหรับแสดงวันที่บันทึก URL
+function getStorageDate() {
+    const timestamp = localStorage.getItem('googleScriptUrlTimestamp');
+    if (timestamp) {
+        const date = new Date(parseInt(timestamp));
+        return date.toLocaleDateString('th-TH', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    return 'ไม่ทราบ';
+}
+
+// แก้ไขฟังก์ชัน saveGoogleScriptUrl() เพื่อบันทึก timestamp
+function saveGoogleScriptUrl() {
+    const url = document.getElementById('googleScriptUrl').value.trim();
+    if (url) {
+        localStorage.setItem('googleScriptUrl', url);
+        localStorage.setItem('googleScriptUrlTimestamp', Date.now().toString());
+        console.log('✅ บันทึก Google Script URL แล้ว');
+        updateUrlStatus(); // อัปเดตสถานะหลังบันทึก
+    }
+}
+
+// ฟังก์ชันสำหรับจัดการ URL
+function manageUrl() {
+    const urlField = document.getElementById('googleScriptUrl');
+    
+    // ถ้ามี URL เดิมให้โหลดมาแสดง
+    const savedUrl = localStorage.getItem('googleScriptUrl');
+    if (savedUrl) {
+        urlField.value = savedUrl;
+    }
+    
+    // แสดง URL container
+    toggleUrlVisibility(true);
+    
+    // Focus ที่ URL field
+    setTimeout(() => {
+        urlField.focus();
+    }, 100);
+}
+
+// ฟังก์ชันบันทึก URL และซ่อน field
+function saveUrlAndHide() {
+    const url = document.getElementById('googleScriptUrl').value.trim();
+    
+    if (!url) {
+        showMessage('กรุณากรอก Google Apps Script URL', 'error');
+        return;
+    }
+    
+    // ตรวจสอบรูปแบบ URL
+    if (!url.includes('script.google.com')) {
+        showMessage('URL ต้องเป็น Google Apps Script URL', 'error');
+        return;
+    }
+    
+    // บันทึก URL
+    saveGoogleScriptUrl();
+    
+    // ซ่อน URL container
+    toggleUrlVisibility(false);
+    
+    // แสดงข้อความ
+    showMessage('บันทึก URL เรียบร้อย', 'success');
+    
+    // ทดสอบการเชื่อมต่ออัตโนมัติ
+    setTimeout(() => {
+        testGoogleSheetsConnection();
+    }, 500);
+}
+
+// ฟังก์ชันยกเลิกการแก้ไข URL
+function cancelUrlEdit() {
+    toggleUrlVisibility(false);
+}
+
+// ฟังก์ชันลบ URL พร้อมยืนยัน
+function deleteStoredUrl() {
+    showConfirmDialog('คุณต้องการลบ URL ที่บันทึกไว้หรือไม่?', () => {
+        localStorage.removeItem('googleScriptUrl');
+        localStorage.removeItem('googleScriptUrlTimestamp');
+        document.getElementById('googleScriptUrl').value = '';
+        updateUrlStatus();
+        updateConnectionStatus('🔘 ลบ URL แล้ว', 'default');
+        showMessage('ลบ URL ที่บันทึกไว้แล้ว', 'success');
+    });
+}
+
+// แก้ไขฟังก์ชัน initializeEventListeners() เพื่อเพิ่ม event listeners ใหม่
+function initializeEventListeners() {
+    // Customer management event listeners
+    document.getElementById('addCustomer').addEventListener('click', showCustomerForm);
+    document.getElementById('cancelCustomer').addEventListener('click', hideCustomerForm);
+    document.getElementById('saveCustomer').addEventListener('click', saveCustomer);
+
+    // Record tab event listeners
+    document.getElementById('selectedCustomer').addEventListener('change', handleCustomerSelection);
+    document.getElementById('saveWater').addEventListener('click', saveWaterReading);
+    document.getElementById('saveElectric').addEventListener('click', saveElectricReading);
+
+    // Period selection event listeners
+    document.getElementById('periodType').addEventListener('change', handlePeriodTypeChange);
+    document.getElementById('updatePeriod').addEventListener('click', updateCurrentUsage);
+    
+    // Summary event listeners
+    document.getElementById('summaryPeriodType').addEventListener('change', updateSummary);
+    document.getElementById('updateSummary').addEventListener('click', updateSummary);
+
+    // History event listeners
+    document.getElementById('historyCustomerFilter').addEventListener('change', updateHistoryDisplay);
+    document.getElementById('clearHistory').addEventListener('click', () => {
+        showConfirmDialog('คุณต้องการล้างประวัติทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้', clearAllHistory);
+    });
+
+    // Settings event listeners
+    document.getElementById('saveSettings').addEventListener('click', saveSettings);
+    document.getElementById('testConnection').addEventListener('click', testGoogleSheetsConnection);
+    document.getElementById('syncData').addEventListener('click', syncDataWithGoogleSheets);
+
+    // 🆕 URL Management event listeners
+    const manageUrlBtn = document.getElementById('manageUrl');
+    if (manageUrlBtn) {
+        manageUrlBtn.addEventListener('click', manageUrl);
+    }
+    
+    const saveUrlBtn = document.getElementById('saveUrl');
+    if (saveUrlBtn) {
+        saveUrlBtn.addEventListener('click', saveUrlAndHide);
+    }
+    
+    const cancelUrlBtn = document.getElementById('cancelUrlEdit');
+    if (cancelUrlBtn) {
+        cancelUrlBtn.addEventListener('click', cancelUrlEdit);
+    }
+    
+    const deleteUrlBtn = document.getElementById('deleteUrl');
+    if (deleteUrlBtn) {
+        deleteUrlBtn.addEventListener('click', deleteStoredUrl);
+    }
+
+    // Enter key สำหรับ URL field
+    const urlField = document.getElementById('googleScriptUrl');
+    if (urlField) {
+        urlField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveUrlAndHide();
+            } else if (e.key === 'Escape') {
+                cancelUrlEdit();
+            }
+        });
+    }
+
+    // Modal event listeners
+    document.getElementById('confirmCancel').addEventListener('click', hideConfirmDialog);
+    document.getElementById('confirmOk').addEventListener('click', () => {
+        if (window.confirmCallback) {
+            window.confirmCallback();
+        }
+        hideConfirmDialog();
+    });
+}
+
+// แก้ไขฟังก์ชัน initializeApp() เพื่อซ่อน URL field ตั้งแต่เริ่มต้น
+function initializeApp() {
+    // Initialize DOM references
+    tabs.customers = document.getElementById('customersTab');
+    tabs.record = document.getElementById('recordTab');
+    tabs.summary = document.getElementById('summaryTab');
+    tabs.history = document.getElementById('historyTab');
+    tabs.settings = document.getElementById('settingsTab');
+
+    // Create content containers
+    createContentContainers();
+    
+    // Set default dates to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('waterDate').value = today;
+    document.getElementById('electricDate').value = today;
+
+    // Load settings to UI
+    loadSettings();
+    
+    // โหลด Google Script URL ที่บันทึกไว้
+    loadGoogleScriptUrl();
+    
+    // 🆕 ซ่อน URL field และแสดงสถานะ
+    setTimeout(() => {
+        toggleUrlVisibility(false);
+    }, 500);
+    
+    // Update displays
+    updateCustomersList();
+    updateCustomerDropdowns();
+    updateCurrentUsage();
+    updateSummary();
+    updateHistoryDisplay();
+
+    // Tab switching
+    Object.keys(tabs).forEach(tabName => {
+        if (tabs[tabName]) {
+            tabs[tabName].addEventListener('click', () => switchTab(tabName));
+        }
+    });
+
+    // Initialize event listeners
+    initializeEventListeners();
+    
+    // Initialize period display
+    updatePeriodDisplay();
+    
+    // Try to load data from Google Sheets on startup if URL is available
+    tryAutoLoadFromGoogleSheets();
+}
+
+// เพิ่มฟังก์ชันตรวจสอบว่ามี URL หรือไม่ (ถ้ายังไม่มี)
+function hasStoredUrl() {
+    return localStorage.getItem('googleScriptUrl') !== null;
 }
