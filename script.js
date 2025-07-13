@@ -1490,36 +1490,6 @@ function syncWithImageTrick(url) {
     });
 }
 
-// ฟังก์ชันสำหรับบันทึกและโหลด Google Script URL
-function saveGoogleScriptUrl() {
-    const url = document.getElementById('googleScriptUrl').value.trim();
-    if (url) {
-        localStorage.setItem('googleScriptUrl', url);
-        console.log('✅ บันทึก Google Script URL แล้ว');
-    }
-}
-
-function loadGoogleScriptUrl() {
-    const savedUrl = localStorage.getItem('googleScriptUrl');
-    if (savedUrl) {
-        document.getElementById('googleScriptUrl').value = savedUrl;
-        console.log('✅ โหลด Google Script URL จาก localStorage');
-        
-        // ทดสอบการเชื่อมต่ออัตโนมัติเมื่อมี URL
-        setTimeout(() => {
-            testGoogleSheetsConnection();
-        }, 1000);
-    }
-}
-
-// ฟังก์ชันสำหรับล้าง URL ที่บันทึกไว้
-function clearSavedUrl() {
-    localStorage.removeItem('googleScriptUrl');
-    document.getElementById('googleScriptUrl').value = '';
-    updateConnectionStatus('🔘 ล้าง URL ที่บันทึกไว้แล้ว', 'default');
-    showMessage('ล้าง URL ที่บันทึกไว้แล้ว', 'success');
-}
-
 // ========================================
 // เพิ่มฟังก์ชันเหล่านี้ในไฟล์ script.js
 // ========================================
@@ -1593,7 +1563,6 @@ function getStorageDate() {
     return 'ไม่ทราบ';
 }
 
-// แก้ไขฟังก์ชัน saveGoogleScriptUrl() เพื่อบันทึก timestamp
 function saveGoogleScriptUrl() {
     const url = document.getElementById('googleScriptUrl').value.trim();
     if (url) {
@@ -1603,7 +1572,6 @@ function saveGoogleScriptUrl() {
         updateUrlStatus(); // อัปเดตสถานะหลังบันทึก
     }
 }
-
 // ฟังก์ชันสำหรับจัดการ URL
 function manageUrl() {
     const urlField = document.getElementById('googleScriptUrl');
@@ -1670,7 +1638,6 @@ function deleteStoredUrl() {
     });
 }
 
-// แก้ไขฟังก์ชัน initializeEventListeners() เพื่อเพิ่ม event listeners ใหม่
 function initializeEventListeners() {
     // Customer management event listeners
     document.getElementById('addCustomer').addEventListener('click', showCustomerForm);
@@ -1701,7 +1668,7 @@ function initializeEventListeners() {
     document.getElementById('testConnection').addEventListener('click', testGoogleSheetsConnection);
     document.getElementById('syncData').addEventListener('click', syncDataWithGoogleSheets);
 
-    // 🆕 URL Management event listeners
+    // 🆕 URL Management event listeners (เก็บเฉพาะส่วนนี้)
     const manageUrlBtn = document.getElementById('manageUrl');
     if (manageUrlBtn) {
         manageUrlBtn.addEventListener('click', manageUrl);
@@ -1744,7 +1711,6 @@ function initializeEventListeners() {
     });
 }
 
-// แก้ไขฟังก์ชัน initializeApp() เพื่อซ่อน URL field ตั้งแต่เริ่มต้น
 function initializeApp() {
     // Initialize DOM references
     tabs.customers = document.getElementById('customersTab');
@@ -1764,13 +1730,8 @@ function initializeApp() {
     // Load settings to UI
     loadSettings();
     
-    // โหลด Google Script URL ที่บันทึกไว้
+    // 🆕 โหลด Google Script URL ที่บันทึกไว้
     loadGoogleScriptUrl();
-    
-    // 🆕 ซ่อน URL field และแสดงสถานะ
-    setTimeout(() => {
-        toggleUrlVisibility(false);
-    }, 500);
     
     // Update displays
     updateCustomersList();
@@ -1794,6 +1755,11 @@ function initializeApp() {
     
     // Try to load data from Google Sheets on startup if URL is available
     tryAutoLoadFromGoogleSheets();
+    
+    // 🆕 ซ่อน URL field และแสดงสถานะ
+    setTimeout(() => {
+        toggleUrlVisibility(false);
+    }, 500);
 }
 
 // เพิ่มฟังก์ชันตรวจสอบว่ามี URL หรือไม่ (ถ้ายังไม่มี)
