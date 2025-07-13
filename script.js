@@ -48,6 +48,57 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
 });
 
+function initializeApp() {
+    // Initialize DOM references
+    tabs.customers = document.getElementById('customersTab');
+    tabs.record = document.getElementById('recordTab');
+    tabs.summary = document.getElementById('summaryTab');
+    tabs.history = document.getElementById('historyTab');
+    tabs.settings = document.getElementById('settingsTab');
+
+    // Create content containers
+    createContentContainers();
+    
+    // Set default dates to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('waterDate').value = today;
+    document.getElementById('electricDate').value = today;
+
+    // Load settings to UI
+    loadSettings();
+    
+    // โหลด Google Script URL ที่บันทึกไว้
+    loadGoogleScriptUrl();
+    
+    // Update displays
+    updateCustomersList();
+    updateCustomerDropdowns();
+    updateCurrentUsage();
+    updateSummary();
+    updateHistoryDisplay();
+
+    // Tab switching
+    Object.keys(tabs).forEach(tabName => {
+        if (tabs[tabName]) {
+            tabs[tabName].addEventListener('click', () => switchTab(tabName));
+        }
+    });
+
+    // Initialize event listeners
+    initializeEventListeners();
+    
+    // Initialize period display
+    updatePeriodDisplay();
+    
+    // Try to load data from Google Sheets on startup if URL is available
+    tryAutoLoadFromGoogleSheets();
+    
+    // ซ่อน URL field และแสดงสถานะ
+    setTimeout(() => {
+        toggleUrlVisibility(false);
+    }, 500);
+}
+
 function createContentContainers() {
     const appContent = document.getElementById('app-content');
     
@@ -1610,57 +1661,6 @@ function initializeEventListeners() {
         }
         hideConfirmDialog();
     });
-}
-
-function initializeApp() {
-    // Initialize DOM references
-    tabs.customers = document.getElementById('customersTab');
-    tabs.record = document.getElementById('recordTab');
-    tabs.summary = document.getElementById('summaryTab');
-    tabs.history = document.getElementById('historyTab');
-    tabs.settings = document.getElementById('settingsTab');
-
-    // Create content containers
-    createContentContainers();
-    
-    // Set default dates to today
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('waterDate').value = today;
-    document.getElementById('electricDate').value = today;
-
-    // Load settings to UI
-    loadSettings();
-    
-    // 🆕 โหลด Google Script URL ที่บันทึกไว้
-    loadGoogleScriptUrl();
-    
-    // Update displays
-    updateCustomersList();
-    updateCustomerDropdowns();
-    updateCurrentUsage();
-    updateSummary();
-    updateHistoryDisplay();
-
-    // Tab switching
-    Object.keys(tabs).forEach(tabName => {
-        if (tabs[tabName]) {
-            tabs[tabName].addEventListener('click', () => switchTab(tabName));
-        }
-    });
-
-    // Initialize event listeners
-    initializeEventListeners();
-    
-    // Initialize period display
-    updatePeriodDisplay();
-    
-    // Try to load data from Google Sheets on startup if URL is available
-    tryAutoLoadFromGoogleSheets();
-    
-    // 🆕 ซ่อน URL field และแสดงสถานะ
-    setTimeout(() => {
-        toggleUrlVisibility(false);
-    }, 500);
 }
 
 // เพิ่มฟังก์ชันตรวจสอบว่ามี URL หรือไม่ (ถ้ายังไม่มี)
