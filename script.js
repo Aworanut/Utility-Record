@@ -10,6 +10,9 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', eve
     }
 });
 
+// 🔒 Hard-coded Google Apps Script URL (ไม่หายเมื่อเปลี่ยนเครื่อง)
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwXhQa74qGDUfzRAMZ_CZfV5-9NqL481O7WkkSnmOwAKLUCtYH9o4tNF4eqnoQYtn1haQ/exec";
+
 // Data storage (in memory since localStorage not available in iframe)
 let appData = {
     customers: [],
@@ -381,6 +384,7 @@ function createContentContainers() {
                         </div>
                     </div>
                 </div>
+                
                 <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">ตั้งค่าอัตราค่าใช้จ่าย</h3>
                 
                 <div class="grid md:grid-cols-2 gap-6">
@@ -428,6 +432,79 @@ function createContentContainers() {
     contents.settings = document.getElementById('settingsContent');
 }
 
+function initializeEventListeners() {
+    // Customer management event listeners
+    document.getElementById('addCustomer').addEventListener('click', showCustomerForm);
+    document.getElementById('cancelCustomer').addEventListener('click', hideCustomerForm);
+    document.getElementById('saveCustomer').addEventListener('click', saveCustomer);
+
+    // Record tab event listeners
+    document.getElementById('selectedCustomer').addEventListener('change', handleCustomerSelection);
+    document.getElementById('saveWater').addEventListener('click', saveWaterReading);
+    document.getElementById('saveElectric').addEventListener('click', saveElectricReading);
+
+    // Period selection event listeners
+    document.getElementById('periodType').addEventListener('change', handlePeriodTypeChange);
+    document.getElementById('updatePeriod').addEventListener('click', updateCurrentUsage);
+    
+    // Summary event listeners
+    document.getElementById('summaryPeriodType').addEventListener('change', updateSummary);
+    document.getElementById('updateSummary').addEventListener('click', updateSummary);
+
+    // History event listeners
+    document.getElementById('historyCustomerFilter').addEventListener('change', updateHistoryDisplay);
+    document.getElementById('clearHistory').addEventListener('click', () => {
+        showConfirmDialog('คุณต้องการล้างประวัติทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้', clearAllHistory);
+    });
+
+    // Settings event listeners
+    document.getElementById('saveSettings').addEventListener('click', saveSettings);
+    document.getElementById('testConnection').addEventListener('click', testGoogleSheetsConnection);
+    document.getElementById('syncData').addEventListener('click', syncDataWithGoogleSheets);
+
+    // URL Management event listeners
+    const manageUrlBtn = document.getElementById('manageUrl');
+    if (manageUrlBtn) {
+        manageUrlBtn.addEventListener('click', manageUrl);
+    }
+    
+    const saveUrlBtn = document.getElementById('saveUrl');
+    if (saveUrlBtn) {
+        saveUrlBtn.addEventListener('click', saveUrlAndHide);
+    }
+    
+    const cancelUrlBtn = document.getElementById('cancelUrlEdit');
+    if (cancelUrlBtn) {
+        cancelUrlBtn.addEventListener('click', cancelUrlEdit);
+    }
+    
+    const deleteUrlBtn = document.getElementById('deleteUrl');
+    if (deleteUrlBtn) {
+        deleteUrlBtn.addEventListener('click', deleteStoredUrl);
+    }
+
+    // Enter key สำหรับ URL field
+    const urlField = document.getElementById('googleScriptUrl');
+    if (urlField) {
+        urlField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                saveUrlAndHide();
+            } else if (e.key === 'Escape') {
+                cancelUrlEdit();
+            }
+        });
+    }
+
+    // Modal event listeners
+    document.getElementById('confirmCancel').addEventListener('click', hideConfirmDialog);
+    document.getElementById('confirmOk').addEventListener('click', () => {
+        if (window.confirmCallback) {
+            window.confirmCallback();
+        }
+        hideConfirmDialog();
+    });
+}
+
 function switchTab(tabName) {
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -452,6 +529,17 @@ function switchTab(tabName) {
             updateHistoryDisplay();
             break;
     }
+}
+
+// 🔒 ฟังก์ชันสำหรับรับ Google Script URL (ใช้ hard-coded URL ก่อน)
+function getGoogleScriptUrl() {
+    // ลำดับความสำคัญ: Hard-code URL > input field
+    if (GOOGLE_SCRIPT_URL) {
+        return GOOGLE_SCRIPT_URL;
+    }
+    
+    // ถ้าไม่มี hard-code URL ให้ใช้จาก input field
+    return document.getElementById('googleScriptUrl').value.trim();
 }
 
 // Customer Management Functions
@@ -1067,17 +1155,14 @@ function saveSettings() {
     showMessage('บันทึกการตั้งค่าเรียบร้อย', 'success');
 }
 
-// Google Sheets Integration Functions (แก้ไขใหม่)
+// 🔒 Google Sheets Integration Functions (ใช้ hard-coded URL)
 async function testGoogleSheetsConnection() {
-    const url = document.getElementById('googleScriptUrl').value.trim();
+    const url = getGoogleScriptUrl();
     
     if (!url) {
-        showMessage('กรุณากรอก Google Apps Script URL', 'error');
+        showMessage('ไม่พบ Google Apps Script URL', 'error');
         return;
     }
-
-    // บันทึก URL เมื่อเริ่มทดสอบ
-    saveGoogleScriptUrl();
 
     updateConnectionStatus('🔄 กำลังทดสอบการเชื่อมต่อ...', 'testing');
 
@@ -1087,7 +1172,7 @@ async function testGoogleSheetsConnection() {
         
         if (result.success) {
             updateConnectionStatus('✅ เชื่อมต่อสำเร็จ', 'connected');
-            showMessage('ทดสอบการเชื่อมต่อสำเร็จ และบันทึก URL แล้ว', 'success');
+            showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
         } else {
             throw new Error(result.error || 'การทดสอบล้มเหลว');
         }
@@ -1101,7 +1186,7 @@ async function testGoogleSheetsConnection() {
             });
             
             updateConnectionStatus('✅ เชื่อมต่อสำเร็จ (no-cors)', 'connected');
-            showMessage('ทดสอบการเชื่อมต่อสำเร็จ และบันทึก URL แล้ว', 'success');
+            showMessage('ทดสอบการเชื่อมต่อสำเร็จ', 'success');
         } catch (fetchError) {
             updateConnectionStatus('❌ เชื่อมต่อไม่สำเร็จ: ' + error.message, 'error');
             showMessage('ไม่สามารถเชื่อมต่อได้: ' + error.message, 'error');
@@ -1109,23 +1194,11 @@ async function testGoogleSheetsConnection() {
     }
 }
 
-// ฟังก์ชันตรวจสอบว่ามี URL บันทึกไว้หรือไม่
-function hasStoredUrl() {
-    return localStorage.getItem('googleScriptUrl') !== null;
-}
-
-// ฟังก์ชันแสดงสถานะการบันทึก URL
-function showUrlStatus() {
-    const hasUrl = hasStoredUrl();
-    const statusText = hasUrl ? '✅ มี URL บันทึกไว้' : '⚠️ ยังไม่มี URL บันทึกไว้';
-    console.log(statusText);
-}
-
 async function syncDataWithGoogleSheets() {
-    const url = document.getElementById('googleScriptUrl').value.trim();
+    const url = getGoogleScriptUrl();
     
     if (!url) {
-        showMessage('กรุณากรอก Google Apps Script URL ก่อน', 'error');
+        showMessage('ไม่พบ Google Apps Script URL', 'error');
         return;
     }
 
@@ -1172,74 +1245,8 @@ async function syncDataWithGoogleSheets() {
     }
 }
 
-async function syncWithFormData(url) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify({
-        action: 'save',
-        data: appData
-    }));
-
-    const response = await fetch(url, {
-        method: 'POST',
-        body: formData
-    });
-
-    if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (FormData)', 'connected');
-            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
-            await loadDataFromGoogleSheets();
-        } else {
-            throw new Error(result.error || 'FormData method failed');
-        }
-    } else {
-        throw new Error(`FormData HTTP ${response.status}`);
-    }
-}
-
-async function syncWithAlternativeMethod(url) {
-    // ใช้ XMLHttpRequest แทน fetch
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200) {
-                    try {
-                        const result = JSON.parse(xhr.responseText);
-                        if (result.success) {
-                            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (XMLHttpRequest)', 'connected');
-                            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
-                            loadDataFromGoogleSheets();
-                            resolve(result);
-                        } else {
-                            reject(new Error(result.error || 'XMLHttpRequest method failed'));
-                        }
-                    } catch (e) {
-                        reject(new Error('Failed to parse response: ' + e.message));
-                    }
-                } else {
-                    reject(new Error(`XMLHttpRequest HTTP ${xhr.status}: ${xhr.statusText}`));
-                }
-            }
-        };
-        
-        xhr.onerror = function() {
-            reject(new Error('XMLHttpRequest network error'));
-        };
-        
-        xhr.send(JSON.stringify({
-            action: 'save',
-            data: appData
-        }));
-    });
-}
-
 async function loadDataFromGoogleSheets() {
-    const url = document.getElementById('googleScriptUrl').value.trim();
+    const url = getGoogleScriptUrl();
     if (!url) return;
 
     try {
@@ -1276,8 +1283,112 @@ async function loadDataFromGoogleSheets() {
 }
 
 async function tryAutoLoadFromGoogleSheets() {
-    // ฟังก์ชันเดิมแต่เปลี่ยนชื่อเป็น loadDataFromGoogleSheets
     await loadDataFromGoogleSheets();
+}
+
+// Helper Functions for Google Sheets
+function makeJSONPRequest(url, params) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+        
+        // สร้าง URL พร้อม parameters
+        const queryString = new URLSearchParams(params).toString();
+        const requestUrl = url + '?' + queryString + '&callback=' + callbackName;
+        
+        // สร้าง callback function
+        window[callbackName] = function(data) {
+            document.head.removeChild(script);
+            delete window[callbackName];
+            resolve(data);
+        };
+        
+        // สร้าง script tag
+        const script = document.createElement('script');
+        script.src = requestUrl;
+        script.onerror = function() {
+            document.head.removeChild(script);
+            delete window[callbackName];
+            reject(new Error('JSONP request failed'));
+        };
+        
+        // timeout
+        setTimeout(() => {
+            if (window[callbackName]) {
+                document.head.removeChild(script);
+                delete window[callbackName];
+                reject(new Error('JSONP request timeout'));
+            }
+        }, 10000);
+        
+        document.head.appendChild(script);
+    });
+}
+
+function syncWithXMLHttpRequest(url) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        
+        xhr.onload = function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (XHR)', 'connected');
+                showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+                setTimeout(() => loadDataFromGoogleSheets(), 1000);
+                resolve();
+            } else {
+                reject(new Error(`XHR ${xhr.status}: ${xhr.statusText}`));
+            }
+        };
+        
+        xhr.onerror = function() {
+            reject(new Error('XHR network error'));
+        };
+        
+        xhr.ontimeout = function() {
+            reject(new Error('XHR timeout'));
+        };
+        
+        xhr.timeout = 30000;
+        
+        // ส่งข้อมูลแบบ form-encoded
+        const formData = new URLSearchParams();
+        formData.append('data', JSON.stringify({
+            action: 'save',
+            data: appData
+        }));
+        
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.send(formData);
+    });
+}
+
+function syncWithImageTrick(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const data = encodeURIComponent(JSON.stringify({
+            action: 'save',
+            data: appData
+        }));
+        
+        // สร้าง URL พร้อมข้อมูล (ถ้าข้อมูลไม่ใหญ่เกินไป)
+        if (data.length > 2000) {
+            reject(new Error('ข้อมูลใหญ่เกินไปสำหรับ Image trick'));
+            return;
+        }
+        
+        img.onload = function() {
+            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (Image)', 'connected');
+            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
+            setTimeout(() => loadDataFromGoogleSheets(), 1000);
+            resolve();
+        };
+        
+        img.onerror = function() {
+            reject(new Error('Image trick failed'));
+        };
+        
+        img.src = url + '?data=' + data + '&t=' + Date.now();
+    });
 }
 
 function updateConnectionStatus(message, status) {
@@ -1290,8 +1401,136 @@ function updateConnectionStatus(message, status) {
         'default': 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
     };
 
-    statusElement.className = 'text-sm p-3 rounded-lg ' + (statusClasses[status] || statusClasses.default);
+    statusElement.className = 'text-sm p-3 rounded-lg border border-gray-200 dark:border-gray-700 ' + (statusClasses[status] || statusClasses.default);
     statusElement.innerHTML = `<span>${message}</span>`;
+}
+
+// 🔒 URL Management Functions (แสดงสถานะ hard-coded URL)
+function loadGoogleScriptUrl() {
+    // ใช้ hard-coded URL ทันที
+    if (GOOGLE_SCRIPT_URL) {
+        document.getElementById('googleScriptUrl').value = GOOGLE_SCRIPT_URL;
+        console.log('✅ ใช้ Google Script URL ที่ hard-code');
+        
+        // ทดสอบการเชื่อมต่ออัตโนมัติ
+        setTimeout(() => {
+            testGoogleSheetsConnection();
+        }, 1000);
+        return;
+    }
+}
+
+function toggleUrlVisibility(show = false) {
+    const urlContainer = document.getElementById('urlContainer');
+    const urlStatus = document.getElementById('urlStatus');
+    
+    if (show) {
+        urlContainer.style.display = 'block';
+        urlStatus.style.display = 'none';
+    } else {
+        urlContainer.style.display = 'none';
+        urlStatus.style.display = 'block';
+        updateUrlStatus();
+    }
+}
+
+function updateUrlStatus() {
+    const statusElement = document.getElementById('urlStatusText');
+    
+    if (statusElement) {
+        if (GOOGLE_SCRIPT_URL) {
+            // แสดงเฉพาะส่วนต้นและท้ายของ URL
+            let maskedUrl = '';
+            if (GOOGLE_SCRIPT_URL.length > 50) {
+                maskedUrl = GOOGLE_SCRIPT_URL.substring(0, 30) + '...' + GOOGLE_SCRIPT_URL.substring(GOOGLE_SCRIPT_URL.length - 15);
+            } else {
+                maskedUrl = GOOGLE_SCRIPT_URL.substring(0, 30) + '...';
+            }
+            
+            statusElement.innerHTML = `
+                <div class="text-center">
+                    <div>
+                        <span class="text-green-600 dark:text-green-400 font-medium">🔒 URL ถูกตั้งค่าแบบถาวร</span><br>
+                        <span class="text-xs text-gray-500 dark:text-gray-400">${maskedUrl}</span>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-2">
+                        URL นี้ไม่หายเมื่อเปลี่ยนเครื่อง
+                    </div>
+                </div>
+            `;
+        } else {
+            statusElement.innerHTML = `
+                <div class="text-center">
+                    <span class="text-red-600 dark:text-red-400 font-medium">❌ ไม่พบ URL ที่ตั้งค่าไว้</span><br>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">กรุณาติดต่อผู้ดูแลระบบ</span>
+                </div>
+            `;
+        }
+    }
+}
+
+function manageUrl() {
+    if (GOOGLE_SCRIPT_URL) {
+        showMessage('URL ถูกตั้งค่าแบบถาวรแล้ว ไม่สามารถแก้ไขได้', 'error');
+        return;
+    }
+    
+    const urlField = document.getElementById('googleScriptUrl');
+    toggleUrlVisibility(true);
+    
+    setTimeout(() => {
+        urlField.focus();
+    }, 100);
+}
+
+function saveUrlAndHide() {
+    if (GOOGLE_SCRIPT_URL) {
+        showMessage('URL ถูกตั้งค่าแบบถาวรแล้ว', 'error');
+        return;
+    }
+    
+    const url = document.getElementById('googleScriptUrl').value.trim();
+    
+    if (!url) {
+        showMessage('กรุณากรอก Google Apps Script URL', 'error');
+        return;
+    }
+    
+    if (!url.includes('script.google.com')) {
+        showMessage('URL ต้องเป็น Google Apps Script URL', 'error');
+        return;
+    }
+    
+    // บันทึก URL ใน localStorage
+    localStorage.setItem('googleScriptUrl', url);
+    localStorage.setItem('googleScriptUrlTimestamp', Date.now().toString());
+    
+    toggleUrlVisibility(false);
+    showMessage('บันทึก URL เรียบร้อย', 'success');
+    
+    setTimeout(() => {
+        testGoogleSheetsConnection();
+    }, 500);
+}
+
+function cancelUrlEdit() {
+    toggleUrlVisibility(false);
+}
+
+function deleteStoredUrl() {
+    if (GOOGLE_SCRIPT_URL) {
+        showMessage('URL ถูกตั้งค่าแบบถาวร ไม่สามารถลบได้', 'error');
+        return;
+    }
+    
+    showConfirmDialog('คุณต้องการลบ URL ที่บันทึกไว้หรือไม่?', () => {
+        localStorage.removeItem('googleScriptUrl');
+        localStorage.removeItem('googleScriptUrlTimestamp');
+        document.getElementById('googleScriptUrl').value = '';
+        updateUrlStatus();
+        updateConnectionStatus('🔘 ลบ URL แล้ว', 'default');
+        showMessage('ลบ URL ที่บันทึกไว้แล้ว', 'success');
+    });
 }
 
 // Utility Functions
@@ -1334,357 +1573,3 @@ function hideConfirmDialog() {
 window.editCustomer = editCustomer;
 window.deleteCustomer = deleteCustomer;
 window.deleteReading = deleteReading;
-
-// ฟังก์ชันสำหรับทำ JSONP request
-function makeJSONPRequest(url, params) {
-    return new Promise((resolve, reject) => {
-        const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-        
-        // สร้าง URL พร้อม parameters
-        const queryString = new URLSearchParams(params).toString();
-        const requestUrl = url + '?' + queryString + '&callback=' + callbackName;
-        
-        // สร้าง callback function
-        window[callbackName] = function(data) {
-            document.head.removeChild(script);
-            delete window[callbackName];
-            resolve(data);
-        };
-        
-        // สร้าง script tag
-        const script = document.createElement('script');
-        script.src = requestUrl;
-        script.onerror = function() {
-            document.head.removeChild(script);
-            delete window[callbackName];
-            reject(new Error('JSONP request failed'));
-        };
-        
-        // timeout
-        setTimeout(() => {
-            if (window[callbackName]) {
-                document.head.removeChild(script);
-                delete window[callbackName];
-                reject(new Error('JSONP request timeout'));
-            }
-        }, 10000);
-        
-        document.head.appendChild(script);
-    });
-}
-
-// ใช้ XMLHttpRequest แทน fetch
-function syncWithXMLHttpRequest(url) {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        
-        xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (XHR)', 'connected');
-                showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
-                setTimeout(() => loadDataFromGoogleSheets(), 1000);
-                resolve();
-            } else {
-                reject(new Error(`XHR ${xhr.status}: ${xhr.statusText}`));
-            }
-        };
-        
-        xhr.onerror = function() {
-            reject(new Error('XHR network error'));
-        };
-        
-        xhr.ontimeout = function() {
-            reject(new Error('XHR timeout'));
-        };
-        
-        xhr.timeout = 30000;
-        
-        // ส่งข้อมูลแบบ form-encoded
-        const formData = new URLSearchParams();
-        formData.append('data', JSON.stringify({
-            action: 'save',
-            data: appData
-        }));
-        
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-        xhr.send(formData);
-    });
-}
-
-// ใช้ Image trick สำหรับส่งข้อมูล (สำหรับข้อมูลเล็กๆ)
-function syncWithImageTrick(url) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const data = encodeURIComponent(JSON.stringify({
-            action: 'save',
-            data: appData
-        }));
-        
-        // สร้าง URL พร้อมข้อมูล (ถ้าข้อมูลไม่ใหญ่เกินไป)
-        if (data.length > 2000) {
-            reject(new Error('ข้อมูลใหญ่เกินไปสำหรับ Image trick'));
-            return;
-        }
-        
-        img.onload = function() {
-            updateConnectionStatus('✅ ซิงค์ข้อมูลสำเร็จ (Image)', 'connected');
-            showMessage('ซิงค์ข้อมูลสำเร็จ', 'success');
-            setTimeout(() => loadDataFromGoogleSheets(), 1000);
-            resolve();
-        };
-        
-        img.onerror = function() {
-            reject(new Error('Image trick failed'));
-        };
-        
-        img.src = url + '?data=' + data + '&t=' + Date.now();
-    });
-}
-
-// ========================================
-// เพิ่มฟังก์ชันเหล่านี้ในไฟล์ script.js
-// ========================================
-
-// ฟังก์ชันสำหรับซ่อน/แสดง URL field
-function toggleUrlVisibility(show = false) {
-    const urlContainer = document.getElementById('urlContainer');
-    const urlStatus = document.getElementById('urlStatus');
-    
-    if (show) {
-        urlContainer.style.display = 'block';
-        urlStatus.style.display = 'none';
-    } else {
-        urlContainer.style.display = 'none';
-        urlStatus.style.display = 'block';
-        updateUrlStatus(); // อัปเดตสถานะเมื่อซ่อน
-    }
-}
-
-// ฟังก์ชันแสดงสถานะ URL
-function updateUrlStatus() {
-    const hasUrl = hasStoredUrl();
-    const statusElement = document.getElementById('urlStatusText');
-    
-    if (statusElement) {
-        if (hasUrl) {
-            const url = localStorage.getItem('googleScriptUrl');
-            // แสดงเฉพาะส่วนต้นและท้ายของ URL
-            let maskedUrl = '';
-            if (url.length > 50) {
-                maskedUrl = url.substring(0, 30) + '...' + url.substring(url.length - 15);
-            } else {
-                maskedUrl = url.substring(0, 30) + '...';
-            }
-            
-            statusElement.innerHTML = `
-                <div class="flex items-center justify-between">
-                    <div>
-                        <span class="text-green-600 dark:text-green-400 font-medium">✅ URL ถูกตั้งค่าแล้ว</span><br>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">${maskedUrl}</span>
-                    </div>
-                    <div class="text-xs text-gray-400">
-                        บันทึกเมื่อ: ${getStorageDate()}
-                    </div>
-                </div>
-            `;
-        } else {
-            statusElement.innerHTML = `
-                <div class="text-center">
-                    <span class="text-red-600 dark:text-red-400 font-medium">❌ ยังไม่ได้ตั้งค่า URL</span><br>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">คลิก "จัดการ URL" เพื่อเพิ่ม URL</span>
-                </div>
-            `;
-        }
-    }
-}
-
-// ฟังก์ชันสำหรับแสดงวันที่บันทึก URL
-function getStorageDate() {
-    const timestamp = localStorage.getItem('googleScriptUrlTimestamp');
-    if (timestamp) {
-        const date = new Date(parseInt(timestamp));
-        return date.toLocaleDateString('th-TH', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    }
-    return 'ไม่ทราบ';
-}
-
-function saveGoogleScriptUrl() {
-    const url = document.getElementById('googleScriptUrl').value.trim();
-    if (url) {
-        localStorage.setItem('googleScriptUrl', url);
-        localStorage.setItem('googleScriptUrlTimestamp', Date.now().toString());
-        console.log('✅ บันทึก Google Script URL แล้ว');
-        updateUrlStatus(); // อัปเดตสถานะหลังบันทึก
-    }
-}
-// ฟังก์ชันสำหรับจัดการ URL
-function manageUrl() {
-    const urlField = document.getElementById('googleScriptUrl');
-    
-    // ถ้ามี URL เดิมให้โหลดมาแสดง
-    const savedUrl = localStorage.getItem('googleScriptUrl');
-    if (savedUrl) {
-        urlField.value = savedUrl;
-    }
-    
-    // แสดง URL container
-    toggleUrlVisibility(true);
-    
-    // Focus ที่ URL field
-    setTimeout(() => {
-        urlField.focus();
-    }, 100);
-}
-
-// ฟังก์ชันบันทึก URL และซ่อน field
-function saveUrlAndHide() {
-    const url = document.getElementById('googleScriptUrl').value.trim();
-    
-    if (!url) {
-        showMessage('กรุณากรอก Google Apps Script URL', 'error');
-        return;
-    }
-    
-    // ตรวจสอบรูปแบบ URL
-    if (!url.includes('script.google.com')) {
-        showMessage('URL ต้องเป็น Google Apps Script URL', 'error');
-        return;
-    }
-    
-    // บันทึก URL
-    saveGoogleScriptUrl();
-    
-    // ซ่อน URL container
-    toggleUrlVisibility(false);
-    
-    // แสดงข้อความ
-    showMessage('บันทึก URL เรียบร้อย', 'success');
-    
-    // ทดสอบการเชื่อมต่ออัตโนมัติ
-    setTimeout(() => {
-        testGoogleSheetsConnection();
-    }, 500);
-}
-
-// ฟังก์ชันยกเลิกการแก้ไข URL
-function cancelUrlEdit() {
-    toggleUrlVisibility(false);
-}
-
-// ฟังก์ชันลบ URL พร้อมยืนยัน
-function deleteStoredUrl() {
-    showConfirmDialog('คุณต้องการลบ URL ที่บันทึกไว้หรือไม่?', () => {
-        localStorage.removeItem('googleScriptUrl');
-        localStorage.removeItem('googleScriptUrlTimestamp');
-        document.getElementById('googleScriptUrl').value = '';
-        updateUrlStatus();
-        updateConnectionStatus('🔘 ลบ URL แล้ว', 'default');
-        showMessage('ลบ URL ที่บันทึกไว้แล้ว', 'success');
-    });
-}
-
-function initializeEventListeners() {
-    // Customer management event listeners
-    document.getElementById('addCustomer').addEventListener('click', showCustomerForm);
-    document.getElementById('cancelCustomer').addEventListener('click', hideCustomerForm);
-    document.getElementById('saveCustomer').addEventListener('click', saveCustomer);
-
-    // Record tab event listeners
-    document.getElementById('selectedCustomer').addEventListener('change', handleCustomerSelection);
-    document.getElementById('saveWater').addEventListener('click', saveWaterReading);
-    document.getElementById('saveElectric').addEventListener('click', saveElectricReading);
-
-    // Period selection event listeners
-    document.getElementById('periodType').addEventListener('change', handlePeriodTypeChange);
-    document.getElementById('updatePeriod').addEventListener('click', updateCurrentUsage);
-    
-    // Summary event listeners
-    document.getElementById('summaryPeriodType').addEventListener('change', updateSummary);
-    document.getElementById('updateSummary').addEventListener('click', updateSummary);
-
-    // History event listeners
-    document.getElementById('historyCustomerFilter').addEventListener('change', updateHistoryDisplay);
-    document.getElementById('clearHistory').addEventListener('click', () => {
-        showConfirmDialog('คุณต้องการล้างประวัติทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้', clearAllHistory);
-    });
-
-    // Settings event listeners
-    document.getElementById('saveSettings').addEventListener('click', saveSettings);
-    document.getElementById('testConnection').addEventListener('click', testGoogleSheetsConnection);
-    document.getElementById('syncData').addEventListener('click', syncDataWithGoogleSheets);
-
-    // 🆕 URL Management event listeners (เก็บเฉพาะส่วนนี้)
-    const manageUrlBtn = document.getElementById('manageUrl');
-    if (manageUrlBtn) {
-        manageUrlBtn.addEventListener('click', manageUrl);
-    }
-    
-    const saveUrlBtn = document.getElementById('saveUrl');
-    if (saveUrlBtn) {
-        saveUrlBtn.addEventListener('click', saveUrlAndHide);
-    }
-    
-    const cancelUrlBtn = document.getElementById('cancelUrlEdit');
-    if (cancelUrlBtn) {
-        cancelUrlBtn.addEventListener('click', cancelUrlEdit);
-    }
-    
-    const deleteUrlBtn = document.getElementById('deleteUrl');
-    if (deleteUrlBtn) {
-        deleteUrlBtn.addEventListener('click', deleteStoredUrl);
-    }
-
-    // Enter key สำหรับ URL field
-    const urlField = document.getElementById('googleScriptUrl');
-    if (urlField) {
-        urlField.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                saveUrlAndHide();
-            } else if (e.key === 'Escape') {
-                cancelUrlEdit();
-            }
-        });
-    }
-
-    // Modal event listeners
-    document.getElementById('confirmCancel').addEventListener('click', hideConfirmDialog);
-    document.getElementById('confirmOk').addEventListener('click', () => {
-        if (window.confirmCallback) {
-            window.confirmCallback();
-        }
-        hideConfirmDialog();
-    });
-}
-
-// เพิ่มฟังก์ชันตรวจสอบว่ามี URL หรือไม่ (ถ้ายังไม่มี)
-function hasStoredUrl() {
-    return localStorage.getItem('googleScriptUrl') !== null;
-}
-
-function loadGoogleScriptUrl() {
-    const savedUrl = localStorage.getItem('googleScriptUrl');
-    if (savedUrl) {
-        document.getElementById('googleScriptUrl').value = savedUrl;
-        console.log('✅ โหลด Google Script URL จาก localStorage');
-        
-        // ทดสอบการเชื่อมต่ออัตโนมัติเมื่อมี URL
-        setTimeout(() => {
-            testGoogleSheetsConnection();
-        }, 1000);
-    }
-}
-
-function clearSavedUrl() {
-    localStorage.removeItem('googleScriptUrl');
-    localStorage.removeItem('googleScriptUrlTimestamp');
-    document.getElementById('googleScriptUrl').value = '';
-    updateConnectionStatus('🔘 ล้าง URL ที่บันทึกไว้แล้ว', 'default');
-    showMessage('ล้าง URL ที่บันทึกไว้แล้ว', 'success');
-}
