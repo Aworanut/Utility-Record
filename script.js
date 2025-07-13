@@ -48,53 +48,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
 });
 
-function initializeApp() {
-    // Initialize DOM references
-    tabs.customers = document.getElementById('customersTab');
-    tabs.record = document.getElementById('recordTab');
-    tabs.summary = document.getElementById('summaryTab');
-    tabs.history = document.getElementById('historyTab');
-    tabs.settings = document.getElementById('settingsTab');
-
-    // Create content containers
-    createContentContainers();
-    
-    // Set default dates to today
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('waterDate').value = today;
-    document.getElementById('electricDate').value = today;
-
-    // Load settings to UI
-    loadSettings();
-    
-    // 🆕 เพิ่มบรรทัดนี้: โหลด Google Script URL ที่บันทึกไว้
-    loadGoogleScriptUrl();
-    
-    // Update displays
-    updateCustomersList();
-    updateCustomerDropdowns();
-    updateCurrentUsage();
-    updateSummary();
-    updateHistoryDisplay();
-
-    // Tab switching
-    Object.keys(tabs).forEach(tabName => {
-        if (tabs[tabName]) {
-            tabs[tabName].addEventListener('click', () => switchTab(tabName));
-        }
-    });
-
-    // Initialize event listeners
-    initializeEventListeners();
-    
-    // Initialize period display
-    updatePeriodDisplay();
-    
-    // Try to load data from Google Sheets on startup if URL is available
-    tryAutoLoadFromGoogleSheets();
-}
-
-
 function createContentContainers() {
     const appContent = document.getElementById('app-content');
     
@@ -422,58 +375,6 @@ function createContentContainers() {
     contents.summary = document.getElementById('summaryContent');
     contents.history = document.getElementById('historyContent');
     contents.settings = document.getElementById('settingsContent');
-}
-
-function initializeEventListeners() {
-    // Customer management event listeners
-    document.getElementById('addCustomer').addEventListener('click', showCustomerForm);
-    document.getElementById('cancelCustomer').addEventListener('click', hideCustomerForm);
-    document.getElementById('saveCustomer').addEventListener('click', saveCustomer);
-
-    // Record tab event listeners
-    document.getElementById('selectedCustomer').addEventListener('change', handleCustomerSelection);
-    document.getElementById('saveWater').addEventListener('click', saveWaterReading);
-    document.getElementById('saveElectric').addEventListener('click', saveElectricReading);
-
-    // Period selection event listeners
-    document.getElementById('periodType').addEventListener('change', handlePeriodTypeChange);
-    document.getElementById('updatePeriod').addEventListener('click', updateCurrentUsage);
-    
-    // Summary event listeners
-    document.getElementById('summaryPeriodType').addEventListener('change', updateSummary);
-    document.getElementById('updateSummary').addEventListener('click', updateSummary);
-
-    // History event listeners
-    document.getElementById('historyCustomerFilter').addEventListener('change', updateHistoryDisplay);
-    document.getElementById('clearHistory').addEventListener('click', () => {
-        showConfirmDialog('คุณต้องการล้างประวัติทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถยกเลิกได้', clearAllHistory);
-    });
-
-    // Settings event listeners
-    document.getElementById('saveSettings').addEventListener('click', saveSettings);
-    document.getElementById('testConnection').addEventListener('click', testGoogleSheetsConnection);
-    document.getElementById('syncData').addEventListener('click', syncDataWithGoogleSheets);
-
-    // 🆕 เพิ่ม event listeners สำหรับ Google Script URL
-    document.getElementById('googleScriptUrl').addEventListener('input', saveGoogleScriptUrl);
-    document.getElementById('googleScriptUrl').addEventListener('paste', () => {
-        setTimeout(saveGoogleScriptUrl, 100); // delay เล็กน้อยเพื่อให้ paste เสร็จก่อน
-    });
-    
-    // เพิ่ม event listener สำหรับปุ่มล้าง URL (ถ้ามี)
-    const clearUrlBtn = document.getElementById('clearSavedUrl');
-    if (clearUrlBtn) {
-        clearUrlBtn.addEventListener('click', clearSavedUrl);
-    }
-
-    // Modal event listeners
-    document.getElementById('confirmCancel').addEventListener('click', hideConfirmDialog);
-    document.getElementById('confirmOk').addEventListener('click', () => {
-        if (window.confirmCallback) {
-            window.confirmCallback();
-        }
-        hideConfirmDialog();
-    });
 }
 
 function switchTab(tabName) {
@@ -1765,4 +1666,25 @@ function initializeApp() {
 // เพิ่มฟังก์ชันตรวจสอบว่ามี URL หรือไม่ (ถ้ายังไม่มี)
 function hasStoredUrl() {
     return localStorage.getItem('googleScriptUrl') !== null;
+}
+
+function loadGoogleScriptUrl() {
+    const savedUrl = localStorage.getItem('googleScriptUrl');
+    if (savedUrl) {
+        document.getElementById('googleScriptUrl').value = savedUrl;
+        console.log('✅ โหลด Google Script URL จาก localStorage');
+        
+        // ทดสอบการเชื่อมต่ออัตโนมัติเมื่อมี URL
+        setTimeout(() => {
+            testGoogleSheetsConnection();
+        }, 1000);
+    }
+}
+
+function clearSavedUrl() {
+    localStorage.removeItem('googleScriptUrl');
+    localStorage.removeItem('googleScriptUrlTimestamp');
+    document.getElementById('googleScriptUrl').value = '';
+    updateConnectionStatus('🔘 ล้าง URL ที่บันทึกไว้แล้ว', 'default');
+    showMessage('ล้าง URL ที่บันทึกไว้แล้ว', 'success');
 }
